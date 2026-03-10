@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -74,86 +75,88 @@ func TestRpsWorkerPullRps(t *testing.T) {
 	rps, err := NewRpsWorker(db)
 	require.NoError(t, err)
 
-	// Process a round of statistics for both daemons (equates to a single pull cycle)
-	callNo := 1
-	err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(callNo))
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		// Process a round of statistics for both daemons (equates to a single pull cycle)
+		callNo := 1
+		err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(callNo))
+		require.NoError(t, err)
 
-	err = rpsTestInvokeResponse6Handler(rps, dhcp6Daemon, makeJSON6(callNo))
-	require.NoError(t, err)
+		err = rpsTestInvokeResponse6Handler(rps, dhcp6Daemon, makeJSON6(callNo))
+		require.NoError(t, err)
 
-	// We should have two rows in PreviousRps map, one for each daemon
-	require.Equal(t, 2, len(rps.PreviousRps))
+		// We should have two rows in PreviousRps map, one for each daemon
+		require.Equal(t, 2, len(rps.PreviousRps))
 
-	// Row 1 should be dhcp4 daemon, it should have an RPS value of 5
-	previous4 := rps.PreviousRps[1]
-	require.NotEqual(t, nil, previous4)
-	require.EqualValues(t, 5, previous4.Value)
+		// Row 1 should be dhcp4 daemon, it should have an RPS value of 5
+		previous4 := rps.PreviousRps[1]
+		require.NotEqual(t, nil, previous4)
+		require.EqualValues(t, 5, previous4.Value)
 
-	// Row 2 should be dhcp6 daemon, it should have an RPS value of 7
-	previous6 := rps.PreviousRps[2]
-	require.NotEqual(t, nil, previous6)
-	require.EqualValues(t, 7, previous6.Value)
+		// Row 2 should be dhcp6 daemon, it should have an RPS value of 7
+		previous6 := rps.PreviousRps[2]
+		require.NotEqual(t, nil, previous6)
+		require.EqualValues(t, 7, previous6.Value)
 
-	// Now let's verify that there are no intervals yet.
-	rpsIntervals, err := dbmodel.GetAllRpsIntervals(db)
-	require.NoError(t, err)
-	require.Len(t, rpsIntervals, 0)
+		// Now let's verify that there are no intervals yet.
+		rpsIntervals, err := dbmodel.GetAllRpsIntervals(db)
+		require.NoError(t, err)
+		require.Len(t, rpsIntervals, 0)
 
-	// Verify daemon RPS stat values are all 0.
-	checkDaemonRpsStats(t, db, 1, 0, 0)
-	checkDaemonRpsStats(t, db, 2, 0, 0)
+		// Verify daemon RPS stat values are all 0.
+		checkDaemonRpsStats(t, db, 1, 0, 0)
+		checkDaemonRpsStats(t, db, 2, 0, 0)
 
-	// sleep two seconds so we will have a later recorded time
-	time.Sleep(2 * time.Second)
+		// sleep two seconds so we will have a later recorded time
+		time.Sleep(2 * time.Second)
 
-	// Do another "pull"
-	callNo++
-	err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(callNo))
-	require.NoError(t, err)
+		// Do another "pull"
+		callNo++
+		err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(callNo))
+		require.NoError(t, err)
 
-	err = rpsTestInvokeResponse6Handler(rps, dhcp6Daemon, makeJSON6(callNo))
-	require.NoError(t, err)
+		err = rpsTestInvokeResponse6Handler(rps, dhcp6Daemon, makeJSON6(callNo))
+		require.NoError(t, err)
 
-	// We should still only have two rows in PreviousRps map, one for each daemon
-	require.Equal(t, 2, len(rps.PreviousRps))
+		// We should still only have two rows in PreviousRps map, one for each daemon
+		require.Equal(t, 2, len(rps.PreviousRps))
 
-	// Row 1 should be dhcp4 daemon, it should have an RPS value of 10
-	current4 := rps.PreviousRps[1]
-	require.NotEqual(t, nil, current4)
-	require.Equal(t, int64(10), current4.Value)
-	// The current recorded time should be two seconds later than the previous time.
-	require.GreaterOrEqual(t, (current4.SampledAt.Unix() - previous4.SampledAt.Unix()), int64(2))
+		// Row 1 should be dhcp4 daemon, it should have an RPS value of 10
+		current4 := rps.PreviousRps[1]
+		require.NotEqual(t, nil, current4)
+		require.Equal(t, int64(10), current4.Value)
+		// The current recorded time should be two seconds later than the previous time.
+		require.GreaterOrEqual(t, (current4.SampledAt.Unix() - previous4.SampledAt.Unix()), int64(2))
 
-	// Row 2 should be dhcp6 daemon, it should have an RPS value of 14
-	current6 := rps.PreviousRps[2]
-	require.NotEqual(t, nil, current6)
-	require.EqualValues(t, 14, current6.Value)
-	// The current recorded time should be two seconds later than the previous time.
-	require.GreaterOrEqual(t, (current6.SampledAt.Unix() - previous6.SampledAt.Unix()), int64(2))
+		// Row 2 should be dhcp6 daemon, it should have an RPS value of 14
+		current6 := rps.PreviousRps[2]
+		require.NotEqual(t, nil, current6)
+		require.EqualValues(t, 14, current6.Value)
+		// The current recorded time should be two seconds later than the previous time.
+		require.GreaterOrEqual(t, (current6.SampledAt.Unix() - previous6.SampledAt.Unix()), int64(2))
 
-	// Now let's verify the intervals.
-	rpsIntervals, err = dbmodel.GetAllRpsIntervals(db)
-	require.NoError(t, err)
-	require.Len(t, rpsIntervals, 2)
+		// Now let's verify the intervals.
+		rpsIntervals, err = dbmodel.GetAllRpsIntervals(db)
+		require.NoError(t, err)
+		require.Len(t, rpsIntervals, 2)
 
-	// First row should be for dhcp4
-	interval := rpsIntervals[0]
-	require.EqualValues(t, 1, interval.KeaDaemonID)
-	require.Equal(t, previous4.SampledAt.Unix(), interval.StartTime.Unix())
-	require.GreaterOrEqual(t, (current4.SampledAt.Unix() - previous4.SampledAt.Unix()), interval.Duration)
-	require.EqualValues(t, 5, interval.Responses)
+		// First row should be for dhcp4
+		interval := rpsIntervals[0]
+		require.EqualValues(t, 1, interval.KeaDaemonID)
+		require.Equal(t, previous4.SampledAt.Unix(), interval.StartTime.Unix())
+		require.GreaterOrEqual(t, (current4.SampledAt.Unix() - previous4.SampledAt.Unix()), interval.Duration)
+		require.EqualValues(t, 5, interval.Responses)
 
-	// Second row should be for dhcp6
-	interval = rpsIntervals[1]
-	require.EqualValues(t, 2, interval.KeaDaemonID)
-	require.Equal(t, previous6.SampledAt.Unix(), interval.StartTime.Unix())
-	require.GreaterOrEqual(t, (current6.SampledAt.Unix() - previous6.SampledAt.Unix()), interval.Duration)
-	require.EqualValues(t, 7, interval.Responses)
+		// Second row should be for dhcp6
+		interval = rpsIntervals[1]
+		require.EqualValues(t, 2, interval.KeaDaemonID)
+		require.Equal(t, previous6.SampledAt.Unix(), interval.StartTime.Unix())
+		require.GreaterOrEqual(t, (current6.SampledAt.Unix() - previous6.SampledAt.Unix()), interval.Duration)
+		require.EqualValues(t, 7, interval.Responses)
 
-	// Verify daemon RPS stat values are as expected.
-	checkDaemonRpsStats(t, db, 1, 2, 2)
-	checkDaemonRpsStats(t, db, 2, 3, 3)
+		// Verify daemon RPS stat values are as expected.
+		checkDaemonRpsStats(t, db, 1, 2, 2)
+		checkDaemonRpsStats(t, db, 2, 3, 3)
+	})
 }
 
 // Verifies that getting stat values that are less than or equal to the previous
@@ -193,37 +196,39 @@ func TestRpsWorkerValuePermutations(t *testing.T) {
 	rps, err := NewRpsWorker(db)
 	require.NoError(t, err)
 
-	for pass := 0; pass < len(statValues); pass++ {
-		// Process the next command response
-		err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(statValues[pass]))
-		require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		for pass := 0; pass < len(statValues); pass++ {
+			// Process the next command response
+			err = rpsTestInvokeResponse4Handler(rps, dhcp4Daemon, makeJSON4(statValues[pass]))
+			require.NoError(t, err)
 
-		// Verify the contents of PreviousRps map
-		require.Equal(t, 1, len(rps.PreviousRps))
-		previous := rps.PreviousRps[1]
-		require.NotEqual(t, nil, previous)
-		require.EqualValues(t, expectedPrevious[pass], previous.Value)
+			// Verify the contents of PreviousRps map
+			require.Equal(t, 1, len(rps.PreviousRps))
+			previous := rps.PreviousRps[1]
+			require.NotEqual(t, nil, previous)
+			require.EqualValues(t, expectedPrevious[pass], previous.Value)
 
-		// Verify the number of interval rows.
-		rpsIntervals, err := dbmodel.GetAllRpsIntervals(db)
-		require.NoError(t, err)
-		require.Len(t, rpsIntervals, pass)
+			// Verify the number of interval rows.
+			rpsIntervals, err := dbmodel.GetAllRpsIntervals(db)
+			require.NoError(t, err)
+			require.Len(t, rpsIntervals, pass)
 
-		// After the first pass, verify the content of the newest interval row
-		// and the kea_dhcp_daemon table.
-		if pass > 0 {
-			require.Equal(t, expectedResponses[pass-1], rpsIntervals[pass-1].Responses)
+			// After the first pass, verify the content of the newest interval row
+			// and the kea_dhcp_daemon table.
+			if pass > 0 {
+				require.Equal(t, expectedResponses[pass-1], rpsIntervals[pass-1].Responses)
 
-			// Verify daemon RPS stats are as expected.  We calculate them from
-			// the recorded intervals to avoid sporadic timing differences in duration
-			// which can cause the test to fail.
-			expectedRps := getExpectedRps(rpsIntervals, pass)
-			checkDaemonRpsStats(t, db, 1, expectedRps, expectedRps)
+				// Verify daemon RPS stats are as expected.  We calculate them from
+				// the recorded intervals to avoid sporadic timing differences in duration
+				// which can cause the test to fail.
+				expectedRps := getExpectedRps(rpsIntervals, pass)
+				checkDaemonRpsStats(t, db, 1, expectedRps, expectedRps)
+			}
+
+			// Sleep for 1 second to ensure durations are at least that long.
+			time.Sleep(1 * time.Second)
 		}
-
-		// Sleep for 1 second to ensure durations are at least that long.
-		time.Sleep(1 * time.Second)
-	}
+	})
 }
 
 // Convenience function that creates a machine with two Kea daemons.
