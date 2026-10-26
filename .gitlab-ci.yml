@@ -41,6 +41,7 @@ variables:
   GOMODCACHE: $CI_PROJECT_DIR/.go/pkg/mod
   GOCACHE: $CI_PROJECT_DIR/.go/build-cache
   GOBIN: $CI_PROJECT_DIR/.go/bin
+  GOTOOLCHAIN: "auto"
 
   # NPM cache location.
   NPM_CACHE_DIR: $CI_PROJECT_DIR/.npm
