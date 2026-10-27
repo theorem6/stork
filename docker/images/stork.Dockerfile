@@ -128,7 +128,7 @@ FROM prepare AS nodemodules-prepare
 WORKDIR /app/rakelib
 COPY rakelib/10_codebase.rake ./
 WORKDIR /app/webui
-COPY webui/package.json webui/package-lock.json webui/.npmrc ./
+COPY webui/package.json webui/package-lock.json ./
 RUN rake prepare:ui_deps
 
 # General-purpose stage for tasks: building, testing, linting, etc.
