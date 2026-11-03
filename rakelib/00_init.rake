@@ -189,6 +189,13 @@ def find_and_prepare_deps(file, extra_prerequisites=[])
             next
         end
 
+        if t.instance_variable_get(:@on_demand)
+            # Skips the dependencies that are required only on demand,
+            # e.g. dependencies needed only in CI.
+            puts "Preparing: #{t.name}... installed on demand"
+            next
+        end
+
         if t.instance_variable_get(:@manual_install)
             # Skips the missing top-level manually-installed prerequisites
             # to avoid interrupting preparing operation. If the
@@ -859,6 +866,9 @@ file BUNDLE => [RUBY, GEM, ruby_tools_dir, ruby_tools_bin_dir] do
     sh BUNDLE, "--version"
 end
 add_hash_guard(BUNDLE, RUBY)
+# Set as "on demand". Bundler is used only to install Danger (in CI) and update the Gemfiles.
+# Install it with the prepare:ruby_deps task or as a prerequisite of the lint:git, gen:ruby_gemlocks or update:ruby_gemfiles task.
+Rake::Task[BUNDLE].instance_variable_set(:@on_demand, true)
 
 danger_gemfile = File.expand_path("init_deps/danger/Gemfile", __dir__)
 DANGER = File.join(ruby_tools_bin_bundle_dir, "danger")
@@ -871,6 +881,9 @@ file DANGER => [ruby_tools_bin_bundle_dir, ruby_tools_dir, BUNDLE] do
     sh DANGER, "--version"
 end
 add_hash_guard(DANGER, danger_gemfile)
+# Set as "on demand". Danger is used only in CI.
+# Install it with the prepare:ruby_deps task or as a prerequisite of the lint:git task.
+Rake::Task[DANGER].instance_variable_set(:@on_demand, true)
 
 NODE = require_manual_install_on("node", any_system)
 
@@ -1170,6 +1183,11 @@ add_hash_guard(PLOTLY, plotly_requirements_file)
 desc 'Install all system-level dependencies'
 task :prepare do
     find_and_prepare_deps(__FILE__)
+end
+
+namespace :prepare do
+    desc 'Install the Ruby dependencies (Bundler and Danger)'
+    task :ruby_deps => [BUNDLE, DANGER]
 end
 
 desc 'Check all system-level dependencies'
