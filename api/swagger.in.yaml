@@ -48,7 +48,6 @@ paths:
         up-to-date ISC software releases so that it could be
         compared with currently used releases.
       operationId: getSoftwareVersions
-      security: []
       tags:
         - General
       responses:
