@@ -28,8 +28,10 @@ var _ Daemon = (*keaDaemon)(nil)
 // It holds common and Kea specific runtime information.
 type keaDaemon struct {
 	daemon
-	connector keaConnector // to communicate with Kea daemon
-	snooper   MemfileSnooper
+	connector  keaConnector // to communicate with Kea daemon
+	snooper    MemfileSnooper
+	sqlLeases  *keaconfig.Database
+	forensicDB *keaconfig.Database
 }
 
 // Interface to a Kea command that allows overriding the daemon list.
@@ -592,6 +594,7 @@ func (d *keaDaemon) RefreshState(ctx context.Context, agent agentManager) error 
 		return errors.WithMessage(err, "cannot fetch Kea configuration")
 	}
 	paths := collectKeaAllowedLogs(config)
+	d.rememberDatabases(config)
 	allowed, maxLeaseUpdates := agent.allowLeaseTracking()
 	if allowed {
 		err = d.ensureWatchingLeasefile(ctx, config, maxLeaseUpdates)
@@ -649,11 +652,31 @@ func (d *keaDaemon) findLeasefilePath(ctx context.Context, configPath string) (s
 	return *status.CSVLeaseFile, nil
 }
 
+// rememberDatabases keeps the PostgreSQL connection settings, including the
+// password Kea uses to write, so later reads do not depend on lease tracking.
+func (d *keaDaemon) rememberDatabases(config *keaconfig.Config) {
+	d.sqlLeases = nil
+	d.forensicDB = nil
+	if config == nil {
+		return
+	}
+	databases := config.GetAllDatabases()
+	if databases.Lease != nil && databases.Lease.Type == "postgresql" {
+		copyDB := *databases.Lease
+		d.sqlLeases = &copyDB
+	}
+	if databases.Forensic != nil && databases.Forensic.Type == "postgresql" {
+		copyDB := *databases.Forensic
+		d.forensicDB = &copyDB
+	}
+}
+
 // Ensure that this keaDaemon is watching the lease file it's supposed to be
 // watching. This function will use the get-status API to ask Kea for the
 // current lease file path (so that we don't have to guess based on defaults and
 // whatever's in the config).
 func (d *keaDaemon) ensureWatchingLeasefile(ctx context.Context, config *keaconfig.Config, maxLeaseUpdates int) error {
+	d.rememberDatabases(config)
 	leaseDBType, persist, configPath := getLeasefileConfigSettings(config)
 
 	// Handle the case where the agent *should* be watching a lease memfile.
@@ -681,22 +704,32 @@ func (d *keaDaemon) ensureWatchingLeasefile(ctx context.Context, config *keaconf
 			// it is looking at the correct one.
 			return d.snooper.EnsureWatching(csvLeaseFile)
 		}
-	} else if d.snooper != nil {
-		// The agent shouldn't be watching a leasefile, but it currently is, so it must
-		// stop. This can happen when the administrator reconfigures it to use an SQL
-		// lease database.
-		d.snooper.Stop()
-		d.snooper = nil
+	} else {
+		if d.snooper != nil {
+			// The agent shouldn't be watching a leasefile, but it currently is, so it must
+			// stop. This can happen when the administrator reconfigures it to use an SQL
+			// lease database.
+			d.snooper.Stop()
+			d.snooper = nil
+		}
 	}
 	return nil
 }
 
 // Get a snapshot of all current leases known for this daemon.
 func (d *keaDaemon) GetLeaseSnapshot() ([]*keadata.Lease, error) {
+	if d.sqlLeases != nil {
+		return queryPostgresLeases(context.Background(), d.Name, d.sqlLeases, 0)
+	}
 	if d.snooper != nil {
 		return d.snooper.GetSnapshot(), nil
 	}
 	return nil, errors.New("cannot provide lease snapshot from a daemon with no lease snooper configured")
+}
+
+// QueryForensicLogs reads the legal-log table. The connection is read-only.
+func (d *keaDaemon) QueryForensicLogs(ctx context.Context, filter ForensicFilter) ([]ForensicLog, int64, error) {
+	return queryForensicLogs(ctx, d.forensicDB, filter)
 }
 
 // Called once before the daemon is removed.

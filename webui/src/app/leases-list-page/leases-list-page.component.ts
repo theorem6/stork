@@ -13,7 +13,6 @@ import { LeasesListTableComponent } from '../leases-list-table/leases-list-table
 @Component({
     selector: 'app-leases-list-page',
     templateUrl: './leases-list-page.component.html',
-    styleUrls: ['./leases-list-page.component.sass'],
     imports: [BreadcrumbsComponent, TabViewComponent, LeasesListTableComponent],
 })
 export class LeasesListPageComponent {

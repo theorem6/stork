@@ -18,6 +18,7 @@ import { ForbiddenPageComponent } from './forbidden-page/forbidden-page.componen
 import { LogViewPageComponent } from './log-view-page/log-view-page.component'
 import { LeaseSearchPageComponent } from './lease-search-page/lease-search-page.component'
 import { LeasesListPageComponent } from './leases-list-page/leases-list-page.component'
+import { ForensicLeasesPageComponent } from './forensic-leases-page/forensic-leases-page.component'
 import { KeaDaemonConfigurationPageComponent } from './kea-daemon-configuration-page/kea-daemon-configuration-page.component'
 import { ConfigCheckerPreferencePageComponent } from './config-checker-preference-page/config-checker-preference-page.component'
 import { CommunicationStatusPageComponent } from './communication-status-page/communication-status-page.component'
@@ -105,6 +106,12 @@ const routes: Routes = [
         component: LeasesListPageComponent,
         canActivate: [AuthGuard],
         data: { key: 'leases-list' },
+    },
+    {
+        path: 'dhcp/forensic-leases',
+        component: ForensicLeasesPageComponent,
+        canActivate: [AuthGuard],
+        data: { key: 'forensic-leases' },
     },
     {
         path: 'dhcp/hosts',

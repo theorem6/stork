@@ -56,6 +56,10 @@ type Database struct {
 	// User contains the username to use when authenticating with an SQL
 	// database server.
 	User string `json:"user"`
+	// Password is the password Kea uses to authenticate to the SQL
+	// database. Stork uses this same secret to read leases and forensic
+	// logs. It is never used to write.
+	Password string `json:"password,omitempty"`
 	// TrustAnchor contains the path to the full certificate chain used
 	// for talking to an SQL database server.
 	TrustAnchor string `json:"trust-anchor"`

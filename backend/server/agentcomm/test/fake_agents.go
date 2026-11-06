@@ -271,6 +271,10 @@ func (fa *FakeAgents) ReceiveKeaLeases(
 	return nil
 }
 
+func (fa *FakeAgents) QueryForensicLogs(ctx context.Context, daemon agentcomm.ControlledDaemon, filter agentcomm.ForensicFilter) (*agentapi.QueryForensicLogsRsp, error) {
+	return &agentapi.QueryForensicLogsRsp{}, nil
+}
+
 func (fa *FakeAgents) ReceiveZoneTransfers(ctx context.Context, daemon agentcomm.ControlledDaemon, follow bool) iter.Seq2[*bind9xfr.State, error] {
 	return func(yield func(*bind9xfr.State, error) bool) {
 	}

@@ -2,8 +2,10 @@
     <div page-help>
         <p>
             This page displays a list of leases in the network. Leases are retrieved at regular intervals, which can be
-            configured in the Settings panel under the Configuration menu in the top bar. Kea must be configured to use
-            a memfile, <em>not</em> an SQL database, for lease storage.
+            configured in the Settings panel under the Configuration menu in the top bar. Kea may store leases in a
+            memfile or in PostgreSQL. For PostgreSQL, the agent reads with the same database user and password Kea uses
+            to write, and it shows the same lease fields as the memfile view. Forensic history is a separate search
+            under DHCP and is not loaded here.
         </p>
         <p>
             By default, the agents do not attempt to collect lease data from the Kea servers for this feature. To

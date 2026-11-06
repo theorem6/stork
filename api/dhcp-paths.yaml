@@ -86,6 +86,57 @@
           schema:
             $ref: "#/definitions/ApiError"
 
+  /forensic-leases:
+    get:
+      summary: Search forensic (legal log) history for a time range.
+      description: >-
+        Reads rows from each monitored Kea legal-log PostgreSQL database
+        for the required from/to time range. Nothing is returned when the
+        range is omitted. The agent opens the database read-only and only
+        runs SELECT, so the query cannot modify the forensic database.
+        Set limit to 0 to return every row inside that time range.
+      operationId: getForensicLeases
+      tags:
+        - DHCP
+      parameters:
+        - $ref: '#/parameters/paginationStartParam'
+        - $ref: '#/parameters/paginationLimitParam'
+        - name: machineId
+          in: query
+          description: Limit the query to daemons on this machine.
+          type: integer
+        - name: daemonId
+          in: query
+          description: Limit the query to one daemon.
+          type: integer
+        - name: address
+          in: query
+          description: Substring matched against the forensic address column.
+          type: string
+        - name: text
+          in: query
+          description: Substring matched against the forensic log text.
+          type: string
+        - name: from
+          in: query
+          required: true
+          description: Inclusive range start, RFC3339. Required.
+          type: string
+        - name: to
+          in: query
+          required: true
+          description: Inclusive range end, RFC3339. Required.
+          type: string
+      responses:
+        200:
+          description: Matching forensic log rows.
+          schema:
+            $ref: "#/definitions/ForensicLogs"
+        default:
+          description: generic error response
+          schema:
+            $ref: "#/definitions/ApiError"
+
   /hosts:
     get:
       summary: Get list of DHCP host reservations.

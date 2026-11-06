@@ -6,6 +6,36 @@
       - 4
       - 6
 
+# Forensic legal-log row. Read from Kea's forensic database, not written.
+
+  ForensicLog:
+    type: object
+    properties:
+      timestamp:
+        type: string
+        description: RFC3339 timestamp of the forensic record.
+      address:
+        type: string
+      log:
+        type: string
+      daemonId:
+        type: integer
+      daemonLabel:
+        type: string
+
+  ForensicLogs:
+    type: object
+    required:
+      - total
+    properties:
+      total:
+        type: integer
+        format: int64
+      items:
+        type: array
+        items:
+          $ref: "#/definitions/ForensicLog"
+
 # Lease
 
   Lease:

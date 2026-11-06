@@ -42,6 +42,9 @@ service Agent {
   // Retrieves a snapshot of all current DHCP leases from the agent.
   rpc ReceiveKeaLeases(ReceiveKeaLeasesReq) returns (stream ReceiveKeaLeasesRsp) {}
 
+  // Reads forensic (legal log) rows. The agent opens the database read-only.
+  rpc QueryForensicLogs(QueryForensicLogsReq) returns (QueryForensicLogsRsp) {}
+
   // Retrieves the zone transfers from the agent with optional watch for new transfers.
   rpc ReceiveZoneTransfers(ReceiveZoneTransfersReq) returns (stream ReceiveZoneTransfersRsp) {}
 }
@@ -484,4 +487,32 @@ message ZoneTransfer {
   // A message logged during the zone transfer which may potentially indicate
   // a failure if the zone transfer status is MESSAGE.
   string message = 13;
+}
+
+// Read-only query of the Kea legal-log (forensic) PostgreSQL database.
+message QueryForensicLogsReq {
+  string controlAddress = 1;
+  int64 controlPort = 2;
+  // Substring matched against the lease address column. Empty matches all.
+  string address = 3;
+  // Substring matched against the log text. Empty matches all.
+  string text = 4;
+  // Inclusive range start as Unix milliseconds. Required; zero is rejected.
+  int64 fromUnixMilli = 5;
+  // Inclusive range end as Unix milliseconds. Required; zero is rejected.
+  int64 toUnixMilli = 6;
+  int64 offset = 7;
+  // Zero means return every row inside the required time range.
+  int64 limit = 8;
+}
+
+message ForensicLog {
+  int64 timestampUnixMilli = 1;
+  string address = 2;
+  string log = 3;
+}
+
+message QueryForensicLogsRsp {
+  int64 total = 1;
+  repeated ForensicLog logs = 2;
 }

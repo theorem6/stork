@@ -1037,6 +1037,54 @@ func (sa *StorkAgent) ReceiveKeaLeases(req *agentapi.ReceiveKeaLeasesReq, server
 	return nil
 }
 
+// QueryForensicLogs reads Kea legal-log rows through a read-only PostgreSQL
+// session. It does not write to the forensic database.
+func (sa *StorkAgent) QueryForensicLogs(ctx context.Context, req *agentapi.QueryForensicLogsReq) (*agentapi.QueryForensicLogsRsp, error) {
+	daemon := sa.Monitor.GetDaemonByAccessPoint(AccessPointControl, req.ControlAddress, req.ControlPort)
+	if daemon == nil {
+		return nil, status.Newf(codes.FailedPrecondition, "Kea server %s:%d not found", req.ControlAddress, req.ControlPort).Err()
+	}
+	keadaemon, ok := daemon.(*keaDaemon)
+	if !ok {
+		return nil, status.Newf(codes.InvalidArgument, "attempted to get forensic logs from daemon %s instead of Kea", daemon.GetName()).Err()
+	}
+	if req.FromUnixMilli <= 0 || req.ToUnixMilli <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "forensic search requires a start and end time")
+	}
+	if req.FromUnixMilli > req.ToUnixMilli {
+		return nil, status.Error(codes.InvalidArgument, "forensic search start is after the end")
+	}
+	filter := ForensicFilter{
+		Address: req.Address,
+		Text:    req.Text,
+		Offset:  req.Offset,
+		Limit:   req.Limit,
+	}
+	if req.FromUnixMilli > 0 {
+		filter.From = time.UnixMilli(req.FromUnixMilli)
+	}
+	if req.ToUnixMilli > 0 {
+		filter.To = time.UnixMilli(req.ToUnixMilli)
+	}
+	logs, total, err := keadaemon.QueryForensicLogs(ctx, filter)
+	if err != nil {
+		log.WithError(err).WithField("daemon", daemon.String()).Error("unable to query forensic logs")
+		return nil, status.New(codes.Internal, err.Error()).Err()
+	}
+	rsp := &agentapi.QueryForensicLogsRsp{
+		Total: total,
+		Logs:  make([]*agentapi.ForensicLog, 0, len(logs)),
+	}
+	for _, entry := range logs {
+		rsp.Logs = append(rsp.Logs, &agentapi.ForensicLog{
+			TimestampUnixMilli: entry.Timestamp.UnixMilli(),
+			Address:            entry.Address,
+			Log:                entry.Log,
+		})
+	}
+	return rsp, nil
+}
+
 // Converts the zone transfer state to the gRPC message. It is extracted into
 // a separate function of unit testing convenience.
 func convertZoneTransferStateToAPI(state bind9xfr.State) *agentapi.ZoneTransfer {

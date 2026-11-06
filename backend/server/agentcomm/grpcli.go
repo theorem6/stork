@@ -1364,6 +1364,49 @@ func (agents *connectedAgentsImpl) ReceiveKeaLeases(ctx context.Context, daemon 
 	}
 }
 
+// QueryForensicLogs asks the agent for a read-only page of legal-log rows.
+func (agents *connectedAgentsImpl) QueryForensicLogs(ctx context.Context, daemon ControlledDaemon, filter ForensicFilter) (*agentapi.QueryForensicLogsRsp, error) {
+	if filter.From.IsZero() || filter.To.IsZero() {
+		return nil, errors.New("forensic search requires a start and end time")
+	}
+	if filter.From.After(filter.To) {
+		return nil, errors.New("forensic search start is after the end")
+	}
+	accessPoint, err := daemon.GetAccessPoint(dbmodel.AccessPointControl)
+	if err != nil {
+		return nil, err
+	}
+	request := &agentapi.QueryForensicLogsReq{
+		ControlAddress: accessPoint.Address,
+		ControlPort:    accessPoint.Port,
+		Address:        filter.Address,
+		Text:           filter.Text,
+		Offset:         filter.Offset,
+		Limit:          filter.Limit,
+	}
+	if !filter.From.IsZero() {
+		request.FromUnixMilli = filter.From.UnixMilli()
+	}
+	if !filter.To.IsZero() {
+		request.ToUnixMilli = filter.To.UnixMilli()
+	}
+	agentAddressPort := net.JoinHostPort(daemon.GetMachineTag().GetAddress(), strconv.FormatInt(daemon.GetMachineTag().GetAgentPort(), 10))
+	agent, err := agents.getConnectedAgent(agentAddressPort)
+	if err != nil {
+		return nil, err
+	}
+	var response *agentapi.QueryForensicLogsRsp
+	err = callAgentClientWithRetry(agent, func(client agentapi.AgentClient) error {
+		var callErr error
+		response, callErr = client.QueryForensicLogs(ctx, request)
+		return errors.WithStack(callErr)
+	})
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to query forensic logs from the agent")
+	}
+	return response, nil
+}
+
 // Makes a request to receive the zone transfers recorded by the specified agent.
 // The follow parameter indicates whether the stream should remain open after
 // receiving the existing zone transfers, and used to receive new zone transfers

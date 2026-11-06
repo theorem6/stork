@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -49,7 +50,19 @@ type ConnectedAgents interface {
 	ReceiveZoneRRs(ctx context.Context, daemon ControlledDaemon, zoneName string, viewName string) iter.Seq2[[]*dnsmodel.RR, error]
 	ReceiveBind9FormattedConfig(ctx context.Context, daemon ControlledDaemon, fileSelector *bind9config.FileTypeSelector, filter *bind9config.Filter) iter.Seq2[*agentapi.ReceiveBind9ConfigRsp, error]
 	ReceiveKeaLeases(ctx context.Context, daemon ControlledDaemon, minCLTT uint64) iter.Seq2[*agentapi.ReceiveKeaLeasesRsp, error]
+	QueryForensicLogs(ctx context.Context, daemon ControlledDaemon, filter ForensicFilter) (*agentapi.QueryForensicLogsRsp, error)
 	ReceiveZoneTransfers(ctx context.Context, daemon ControlledDaemon, follow bool) iter.Seq2[*bind9xfr.State, error]
+}
+
+// ForensicFilter selects legal-log rows. From and To are required. Limit zero
+// returns every row in that time range. The agent applies this as a read-only query.
+type ForensicFilter struct {
+	Address string
+	Text    string
+	From    time.Time
+	To      time.Time
+	Offset  int64
+	Limit   int64
 }
 
 // Interface representing a connector to a selected agent over gRPC.

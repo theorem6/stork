@@ -112,8 +112,10 @@ func checkIsLocalhost(host string) bool {
 // function over time will choose the same daemon from a set of duplicates each
 // time. (This is done by ID, choosing the lowest ID from the set.)
 //
-// onlyMemfile is an additional filter to help me during development because the
-// agent doesn't support any database other than memfile yet.
+// onlyMemfile skips MySQL and PostgreSQL lease databases. The agent reads
+// memfile and PostgreSQL. Callers that pass false still receive MySQL daemons
+// so identical MySQL databases stay deduplicated; the lease puller drops them
+// before contacting the agent.
 //
 // Precondition: the daemons slice is sorted by ID ascending.
 func filterDaemons(daemons []dbmodel.Daemon, onlyMemfile bool) []*dbmodel.Daemon {
@@ -182,7 +184,20 @@ func (puller *LeasesPuller) pullLeases() error {
 		return err
 	}
 
-	selectedDaemons := filterDaemons(daemons, true)
+	// PostgreSQL lease databases are included. MySQL stays out of the pull
+	// because the agent cannot read it, and a failed pull would repeat every
+	// interval.
+	selectedDaemons := filterDaemons(daemons, false)
+	readable := make([]*dbmodel.Daemon, 0, len(selectedDaemons))
+	for _, daemon := range selectedDaemons {
+		databases := daemon.KeaDaemon.Config.GetAllDatabases()
+		if databases.Lease != nil && databases.Lease.Type == "mysql" {
+			log.WithField("daemon_id", daemon.ID).Debug("Skipping MySQL lease database")
+			continue
+		}
+		readable = append(readable, daemon)
+	}
+	selectedDaemons = readable
 	selectedDaemonsCount := len(selectedDaemons)
 
 	// Get lease records from each daemon.
